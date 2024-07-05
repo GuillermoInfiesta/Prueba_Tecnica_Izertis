@@ -7,11 +7,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 
-/* 1000 msec = 1 sec */
-#define SECOND_MS 1000
-/* 60 sec = 1 h */
-#define MINUTE_MS SECOND_MS * 60
-
 #define TIMMER_LEDS_FREQ 2
 
 /* The devicetree node identifiers for the "led0", "led1", "led2" & "led3" aliases. */
@@ -120,11 +115,12 @@ int flash_led(const struct gpio_dt_spec led, const int flash_per_sec, const int 
 
 	return 0;
 }
+
 /*
  * Method in charge of switching the LEDs to display the time
  * our device has been active.
  */
-int display_active_time()
+void display_active_time()
 {
 	int hours_tens = hours_counter / 10;
 	int hours_units = hours_counter % 10;
@@ -136,29 +132,49 @@ int display_active_time()
 	ret = flash_led(led3, TIMMER_LEDS_FREQ, hours_tens);
 	if (ret != 0)
 	{
-		return -1;
+		return;
 	}
 
 	ret = flash_led(led2, TIMMER_LEDS_FREQ, hours_units);
 	if (ret != 0)
 	{
-		return -1;
+		return;
 	}
 
 	ret = flash_led(led1, TIMMER_LEDS_FREQ, minutes_tens);
 	if (ret != 0)
 	{
-		return -1;
+		return;
 	}
 
 	ret = flash_led(led0, TIMMER_LEDS_FREQ, minutes_units);
 	if (ret != 0)
 	{
-		return -1;
+		return;
 	}
+};
 
-	return 0;
+/*
+* Method containing the work we want to do everytime the timer expires, 
+* we want to both update the active time and display it using the LEDs.
+*/
+void leds_work_handler()
+{
+	update_active_time();
+	display_active_time();
 }
+
+K_WORK_DEFINE(leds_work, leds_work_handler);
+
+/*
+* Method called when our 1 minute timer expires.
+*/
+void timer_handler(struct k_timer *dummy)
+{
+	k_work_submit(&leds_work);
+}
+
+K_TIMER_DEFINE(timer, timer_handler, NULL);
 
 /*
  * Main idea is to do the led switching each minute inside the main loop, since
@@ -167,6 +183,7 @@ int display_active_time()
  */
 int main(void)
 {
+
 	int ret;
 
 	if (!gpio_is_ready_dt(&led0) || !gpio_is_ready_dt(&led1) || !gpio_is_ready_dt(&led2) || !gpio_is_ready_dt(&led3))
@@ -180,6 +197,9 @@ int main(void)
 		return 0;
 	}
 
+	//Start the timer so it expires once pero minute constantly.
+	k_timer_start(&timer, K_MINUTES(1), K_MINUTES(1));
+
 	while (1)
 	{
 		/*
@@ -190,13 +210,10 @@ int main(void)
 			return 0;
 		}
 		*/
-		ret = display_active_time();
-		if (ret != 0)
-		{
-			return 0;
-		}
-		k_msleep(MINUTE_MS);
-		update_active_time();
+		ret = 0;
+		// display_active_time();
+		k_msleep(60000);
+		// update_active_time();
 	}
 	return 0;
 }
