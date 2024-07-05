@@ -12,6 +12,7 @@
 #define LED2_NODE DT_ALIAS(led2)
 #define LED3_NODE DT_ALIAS(led3)
 
+/* Devicetree node identifier for the "sw0" alias */
 #define SW0_NODE DT_ALIAS(sw0)
 
 /*
@@ -69,6 +70,14 @@ int configure_LEDS()
 	return 0;
 }
 
+/*
+ * Method in charge of configuring the button pin as an input,
+ * configure when the interruption should be triggered and link
+ * the callback function for when the button is pressed.
+ * RETURN:
+ * 0 -> No errors
+ * -1 -> An error ocurred configuring the button
+ */
 int configure_button()
 {
 	int ret;
@@ -107,6 +116,11 @@ void update_active_time()
 	minutes_counter++;
 }
 
+/*
+ * Method linked to the callback of the button when its pressed, since
+ * we want to restart the count once the button is pressed, all we do
+ * is reset the counters.
+ */
 void reset_count(const struct device *dev, struct gpio_callback *cb,
 				 uint32_t pins)
 {
@@ -114,6 +128,7 @@ void reset_count(const struct device *dev, struct gpio_callback *cb,
 	hours_counter = 0;
 	// Quizas añadir que el timer se resetee
 }
+
 /*
  * Method in charge of making a specific LED blink a specific number of timmes
  * PARAMS:
@@ -229,6 +244,12 @@ int main(void)
 	}
 
 	ret = configure_LEDS();
+	if (ret != 0)
+	{
+		return -1;
+	}
+
+	ret = configure_button();
 	if (ret != 0)
 	{
 		return -1;
