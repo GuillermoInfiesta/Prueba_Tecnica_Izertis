@@ -1,12 +1,7 @@
-/*
- * Copyright (c) 2016 Intel Corporation
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 
+/* Frequency at which the LEDs will blink*/
 #define TIMMER_LEDS_FREQ 2
 
 /* The devicetree node identifiers for the "led0", "led1", "led2" & "led3" aliases. */
@@ -32,7 +27,7 @@ static int hours_counter, minutes_counter = 0;
  * they are set as inactive so they start with a logic '0'.
  * RETURN:
  * 0 -> No errors
- * -1 -> An error ocurred when configuring one of the leds
+ * -1 -> An error ocurred when configuring one of the LEDs
  */
 int configure_LEDS()
 {
@@ -79,9 +74,15 @@ void update_active_time()
 	}
 
 	minutes_counter++;
-	return;
 }
 
+/*
+ * Method in charge of making a specific LED blink a specific number of timmes
+ * PARAMS:
+ * led -> The LED which we want to blink
+ * flash_per_sec -> The frequency at which the LED will blink
+ * flash_cnt -> How many times we want the LED to blink
+ */
 int flash_led(const struct gpio_dt_spec led, const int flash_per_sec, const int flash_cnt)
 {
 	/*
@@ -95,7 +96,7 @@ int flash_led(const struct gpio_dt_spec led, const int flash_per_sec, const int 
 	}
 
 	int ret;
-	int flash_period = 1000 / flash_per_sec;
+	int flash_period_ms = 1000 / flash_per_sec;
 	for (int i = 0; i < flash_cnt; i++)
 	{
 		ret = gpio_pin_set_dt(&led, 1);
@@ -103,14 +104,14 @@ int flash_led(const struct gpio_dt_spec led, const int flash_per_sec, const int 
 		{
 			return -1;
 		}
-		k_msleep(flash_period / 2);
+		k_msleep(flash_period_ms / 2);
 
 		ret = gpio_pin_set_dt(&led, 0);
 		if (ret < 0)
 		{
 			return -1;
 		}
-		k_msleep(flash_period / 2);
+		k_msleep(flash_period_ms / 2);
 	}
 
 	return 0;
@@ -155,9 +156,9 @@ void display_active_time()
 };
 
 /*
-* Method containing the work we want to do everytime the timer expires, 
-* we want to both update the active time and display it using the LEDs.
-*/
+ * Method containing the work we want to do everytime the timer expires,
+ * we want to both update the active time and display it using the LEDs.
+ */
 void leds_work_handler()
 {
 	update_active_time();
@@ -166,9 +167,7 @@ void leds_work_handler()
 
 K_WORK_DEFINE(leds_work, leds_work_handler);
 
-/*
-* Method called when our 1 minute timer expires.
-*/
+/* Method called when our 1 minute timer expires */
 void timer_handler(struct k_timer *dummy)
 {
 	k_work_submit(&leds_work);
@@ -197,23 +196,11 @@ int main(void)
 		return 0;
 	}
 
-	//Start the timer so it expires once pero minute constantly.
+	/* Start the timer, setting it to expire every minute */
 	k_timer_start(&timer, K_MINUTES(1), K_MINUTES(1));
 
-	while (1)
-	{
-		/*
-		ret = gpio_pin_toggle_dt(&led0);
-		ret = gpio_pin_set_dt(&led0, 1);
-		if (ret < 0)
-		{
-			return 0;
-		}
-		*/
-		ret = 0;
-		// display_active_time();
-		k_msleep(60000);
-		// update_active_time();
-	}
+	// Es necesario este bucle infinito? Si acaba el main y muere el hilo la ISR del timmer se elimina??
+	while (true)
+		;
 	return 0;
 }
