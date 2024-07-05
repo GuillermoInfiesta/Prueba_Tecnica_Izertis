@@ -1,5 +1,7 @@
 #include <zephyr/kernel.h>
+#include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/sys/util.h>
 
 /* Frequency at which the LEDs will blink*/
 #define TIMMER_LEDS_FREQ 2
@@ -10,6 +12,8 @@
 #define LED2_NODE DT_ALIAS(led2)
 #define LED3_NODE DT_ALIAS(led3)
 
+#define SW0_NODE DT_ALIAS(sw0)
+
 /*
  * A build error on this line means your board is unsupported.
  * See the sample documentation for information on how to fix this.
@@ -18,6 +22,11 @@ static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 static const struct gpio_dt_spec led1 = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
 static const struct gpio_dt_spec led2 = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
 static const struct gpio_dt_spec led3 = GPIO_DT_SPEC_GET(LED3_NODE, gpios);
+
+static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios, {0});
+static struct gpio_callback button_cb;
+void reset_count(const struct device *dev, struct gpio_callback *cb,
+				 uint32_t pins);
 
 //***Otras opciones: Un solo contador y hacer / % 60 + / % 10 para las unidades o tener 4 contadores***
 static int hours_counter, minutes_counter = 0;
@@ -60,6 +69,28 @@ int configure_LEDS()
 	return 0;
 }
 
+int configure_button()
+{
+	int ret;
+
+	ret = gpio_pin_configure_dt(&button, GPIO_INPUT);
+	if (ret != 0)
+	{
+		return -1;
+	}
+
+	ret = gpio_pin_interrupt_configure_dt(&button, GPIO_INT_EDGE_TO_ACTIVE);
+	if (ret != 0)
+	{
+		return -1;
+	}
+
+	gpio_init_callback(&button_cb, reset_count, BIT(button.pin));
+	gpio_add_callback(button.port, &button_cb);
+
+	return 0;
+}
+
 /*
  * Method in charge of updating the counters that indicate the time
  * our device has been active.
@@ -76,6 +107,13 @@ void update_active_time()
 	minutes_counter++;
 }
 
+void reset_count(const struct device *dev, struct gpio_callback *cb,
+				 uint32_t pins)
+{
+	minutes_counter = 0;
+	hours_counter = 0;
+	// Quizas añadir que el timer se resetee
+}
 /*
  * Method in charge of making a specific LED blink a specific number of timmes
  * PARAMS:
@@ -185,15 +223,15 @@ int main(void)
 
 	int ret;
 
-	if (!gpio_is_ready_dt(&led0) || !gpio_is_ready_dt(&led1) || !gpio_is_ready_dt(&led2) || !gpio_is_ready_dt(&led3))
+	if (!gpio_is_ready_dt(&led0) || !gpio_is_ready_dt(&led1) || !gpio_is_ready_dt(&led2) || !gpio_is_ready_dt(&led3) || !gpio_is_ready_dt(&button))
 	{
-		return 0;
+		return -1;
 	}
 
 	ret = configure_LEDS();
 	if (ret != 0)
 	{
-		return 0;
+		return -1;
 	}
 
 	/* Start the timer, setting it to expire every minute */
