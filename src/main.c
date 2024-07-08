@@ -18,8 +18,7 @@
 #define SW0_NODE DT_ALIAS(sw0)
 
 /* Define the sematphores for our synchronizing of the threads */
-K_SEM_DEFINE(sem1, 1, 1);
-K_SEM_DEFINE(sem2, 0, 1);
+K_SEM_DEFINE(sem, 0, 1);
 
 /*
  * A build error on this line means your board is unsupported.
@@ -216,6 +215,11 @@ void display_active_time()
 	}
 };
 
+/*
+ * Method the timing thread will execute. It first configures the
+ * gpio´s and then goes in an infinite loop of waiting a minute and
+ * giving the semaphore to the other thread.
+ */
 void timing_thread()
 {
 
@@ -240,21 +244,26 @@ void timing_thread()
 
 	while (true)
 	{
-		k_sem_take(&sem1, K_NO_WAIT);
-		k_sem_give(&sem2);
-
+		k_sem_give(&sem);
 		k_msleep(1000 * 60);
 	}
 }
 
+/*
+ * Method the leds thread will execute, it constantly
+ * waits for the semaphore to be available (1 minute past)
+ * and once it is, it updates the active time and displays it,
+ * going back again to waiting after
+ */
 void leds_thread()
 {
-	k_sem_take(&sem2, K_FOREVER);
+	while (true)
+	{
+		k_sem_take(&sem, K_FOREVER);
 
-	update_active_time();
-	display_active_time();
-
-	k_sem_give(&sem1);
+		update_active_time();
+		display_active_time();
+	}
 }
 
 K_THREAD_DEFINE(task1_id, STACK_SIZE, timing_thread, NULL, NULL, NULL, THREADS_PRIO, 0, 0);
