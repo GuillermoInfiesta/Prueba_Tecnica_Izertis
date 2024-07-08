@@ -258,5 +258,7 @@ int main(void)
 	while (true)
 		;
 
+	// new branch test
+
 	return 0;
 }
