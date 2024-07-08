@@ -29,7 +29,6 @@ static struct gpio_callback button_cb;
 void reset_count(const struct device *dev, struct gpio_callback *cb,
 				 uint32_t pins);
 
-//***Otras opciones: Un solo contador y hacer / % 60 + / % 10 para las unidades o tener 4 contadores***
 static int hours_counter, minutes_counter = 0;
 
 /*
@@ -126,7 +125,6 @@ void reset_count(const struct device *dev, struct gpio_callback *cb,
 {
 	minutes_counter = 0;
 	hours_counter = 0;
-	// Quizas añadir que el timer se resetee
 }
 
 /*
@@ -176,6 +174,10 @@ int flash_led(const struct gpio_dt_spec led, const int flash_per_sec, const int 
  */
 void display_active_time()
 {
+	/*
+	 * Split the counters in tens and units.
+	 * e.g: 17 / 10 = 1  &  17 % 10 = 7.
+	 */
 	int hours_tens = hours_counter / 10;
 	int hours_units = hours_counter % 10;
 	int minutes_tens = minutes_counter / 10;
@@ -228,11 +230,6 @@ void timer_handler(struct k_timer *dummy)
 
 K_TIMER_DEFINE(timer, timer_handler, NULL);
 
-/*
- * Main idea is to do the led switching each minute inside the main loop, since
- * its the only thing the device will do. In case there where more tasks at the same
- * time the led switching would be done inside an ISR or multithreads would be used
- */
 int main(void)
 {
 
@@ -258,8 +255,8 @@ int main(void)
 	/* Start the timer, setting it to expire every minute */
 	k_timer_start(&timer, K_MINUTES(1), K_MINUTES(1));
 
-	// Es necesario este bucle infinito? Si acaba el main y muere el hilo la ISR del timmer se elimina??
 	while (true)
 		;
+
 	return 0;
 }
