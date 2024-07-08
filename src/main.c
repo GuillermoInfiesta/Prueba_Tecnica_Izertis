@@ -5,6 +5,8 @@
 
 /* Frequency at which the LEDs will blink*/
 #define TIMMER_LEDS_FREQ 2
+#define THREADS_PRIO 5
+#define STACK_SIZE 1024
 
 /* The devicetree node identifiers for the "led0", "led1", "led2" & "led3" aliases. */
 #define LED0_NODE DT_ALIAS(led0)
@@ -14,6 +16,10 @@
 
 /* Devicetree node identifier for the "sw0" alias */
 #define SW0_NODE DT_ALIAS(sw0)
+
+/* Define the sematphores for our synchronizing of the threads */
+K_SEM_DEFINE(sem1, 1, 1);
+K_SEM_DEFINE(sem2, 0, 1);
 
 /*
  * A build error on this line means your board is unsupported.
@@ -210,55 +216,46 @@ void display_active_time()
 	}
 };
 
-/*
- * Method containing the work we want to do everytime the timer expires,
- * we want to both update the active time and display it using the LEDs.
- */
-void leds_work_handler()
-{
-	update_active_time();
-	display_active_time();
-}
-
-K_WORK_DEFINE(leds_work, leds_work_handler);
-
-/* Method called when our 1 minute timer expires */
-void timer_handler(struct k_timer *dummy)
-{
-	k_work_submit(&leds_work);
-}
-
-K_TIMER_DEFINE(timer, timer_handler, NULL);
-
-int main(void)
+void timing_thread()
 {
 
 	int ret;
 
 	if (!gpio_is_ready_dt(&led0) || !gpio_is_ready_dt(&led1) || !gpio_is_ready_dt(&led2) || !gpio_is_ready_dt(&led3) || !gpio_is_ready_dt(&button))
 	{
-		return -1;
+		return;
 	}
 
 	ret = configure_LEDS();
 	if (ret != 0)
 	{
-		return -1;
+		return;
 	}
 
 	ret = configure_button();
 	if (ret != 0)
 	{
-		return -1;
+		return;
 	}
 
-	/* Start the timer, setting it to expire every minute */
-	k_timer_start(&timer, K_MINUTES(1), K_MINUTES(1));
-
 	while (true)
-		;
+	{
+		k_sem_take(&sem1, K_NO_WAIT);
+		k_sem_give(&sem2);
 
-	// new branch test
-
-	return 0;
+		k_msleep(1000 * 60);
+	}
 }
+
+void leds_thread()
+{
+	k_sem_take(&sem2, K_FOREVER);
+
+	update_active_time();
+	display_active_time();
+
+	k_sem_give(&sem1);
+}
+
+K_THREAD_DEFINE(task1_id, STACK_SIZE, timing_thread, NULL, NULL, NULL, THREADS_PRIO, 0, 0);
+K_THREAD_DEFINE(task2_id, STACK_SIZE, leds_thread, NULL, NULL, NULL, THREADS_PRIO, 0, 0);
